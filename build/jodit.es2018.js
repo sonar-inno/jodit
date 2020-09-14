@@ -1614,6 +1614,7 @@ __webpack_require__.r(__webpack_exports__);
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "IS_IE", function() { return IS_IE; });
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "TEXT_PLAIN", function() { return TEXT_PLAIN; });
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "TEXT_HTML", function() { return TEXT_HTML; });
+/* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "TEXT_RTF", function() { return TEXT_RTF; });
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "MARKER_CLASS", function() { return MARKER_CLASS; });
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "EMULATE_DBLCLICK_TIMEOUT", function() { return EMULATE_DBLCLICK_TIMEOUT; });
 /* harmony export (binding) */ __webpack_require__.d(__webpack_exports__, "INSERT_AS_HTML", function() { return INSERT_AS_HTML; });
@@ -1686,6 +1687,7 @@ const IS_IE = typeof navigator !== 'undefined' &&
         /rv:11.0/i.test(navigator.userAgent));
 const TEXT_PLAIN = IS_IE ? 'text' : 'text/plain';
 const TEXT_HTML = IS_IE ? 'text' : 'text/html';
+const TEXT_RTF = IS_IE ? 'text' : 'text/rtf';
 const MARKER_CLASS = 'jodit-selection_marker';
 const EMULATE_DBLCLICK_TIMEOUT = 300;
 const INSERT_AS_HTML = 'insert_as_html';
@@ -2188,7 +2190,7 @@ PERFORMANCE OF THIS SOFTWARE.
 var extendStatics = function(d, b) {
     extendStatics = Object.setPrototypeOf ||
         ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+        function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
     return extendStatics(d, b);
 };
 
@@ -2282,8 +2284,8 @@ var __createBinding = Object.create ? (function(o, m, k, k2) {
     o[k2] = m[k];
 });
 
-function __exportStar(m, exports) {
-    for (var p in m) if (p !== "default" && !exports.hasOwnProperty(p)) __createBinding(exports, m, p);
+function __exportStar(m, o) {
+    for (var p in m) if (p !== "default" && !Object.prototype.hasOwnProperty.call(o, p)) __createBinding(o, m, p);
 }
 
 function __values(o) {
@@ -2373,7 +2375,7 @@ var __setModuleDefault = Object.create ? (function(o, v) {
 function __importStar(mod) {
     if (mod && mod.__esModule) return mod;
     var result = {};
-    if (mod != null) for (var k in mod) if (Object.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
     __setModuleDefault(result, mod);
     return result;
 }
@@ -20465,7 +20467,91 @@ config["a" /* Config */].prototype.controls.paste = {
     }
 };
 
+// CONCATENATED MODULE: ./src/utils/word-image-filter.js
+function replaceImagesSourceWithBase64(html, rtfData) {
+	const images = findAllImageElementsWithLocalSource(html);
+
+	if (images.length) {
+		html = replaceImagesFileSourceWithInlineRepresentation(html, images, extractImageDataFromRtf(rtfData));
+	}
+
+	return html;
+}
+
+function _convertHexToBase64(hexString) {
+	return btoa(hexString.match(/\w{2}/g).map(char => {
+		return String.fromCharCode(parseInt(char, 16));
+	}).join(''));
+}
+
+function findAllImageElementsWithLocalSource(html) {
+	// Declare variables
+	var p = 0;
+	var pos = 0;
+	var i = -1;
+	const imgs = [];
+
+	// Search the string and counts the number of e's
+	while (p != -1) {
+		p = html.indexOf("![endif]", i + 1);
+		if (p != -1) {
+			pos = html.indexOf("file://", p + 1);
+			i = pos;
+
+			if (pos != -1) {
+				imgs.push(pos);
+			}
+		}
+	}
+
+	return imgs;
+}
+
+function extractImageDataFromRtf(rtfData) {
+	if (!rtfData) {
+		return [];
+	}
+
+	const regexPictureHeader = /{\\pict[\s\S]+?\\bliptag-?\d+(\\blipupi-?\d+)?({\\\*\\blipuid\s?[\da-fA-F]+)?[\s}]*?/;
+	const regexPicture = new RegExp('(?:(' + regexPictureHeader.source + '))([\\da-fA-F\\s]+)\\}', 'g');
+	const images = rtfData.match(regexPicture);
+	const result = [];
+
+	if (images) {
+		for (const image of images) {
+			let imageType = false;
+
+			if (image.includes('\\pngblip')) {
+				imageType = 'image/png';
+			} else if (image.includes('\\jpegblip')) {
+				imageType = 'image/jpeg';
+			}
+
+			if (imageType) {
+				result.push({
+					hex: image.replace(regexPictureHeader, '').replace(/[^\da-fA-F]/g, ''),
+					type: imageType
+				});
+			}
+		}
+	}
+
+	return result;
+}
+
+function replaceImagesFileSourceWithInlineRepresentation(html, imagePosition, imagesHexSources) {
+	// Assume there is an equal amount of image elements and images HEX sources so they can be matched accordingly based on existing order.
+	if (imagePosition.length === imagesHexSources.length) {
+		for (let i = imagePosition.length - 1; i >= 0; i--) {
+			const newSrc = `data:${imagesHexSources[i].type};base64,${_convertHexToBase64(imagesHexSources[i].hex)}`;
+			html = html.substring(0, imagePosition[i]) + newSrc + html.substring(html.indexOf('"', imagePosition[i] + 1));
+		}
+	}
+
+	return html;
+}
 // CONCATENATED MODULE: ./src/plugins/clipboard/paste/paste.ts
+
 
 
 
@@ -20509,7 +20595,7 @@ class paste_paste extends plugin_Plugin {
         const dt = getDataTransfer(e), texts = [dt === null || dt === void 0 ? void 0 : dt.getData(constants["TEXT_HTML"]), dt === null || dt === void 0 ? void 0 : dt.getData(constants["TEXT_PLAIN"])];
         for (const text of texts) {
             if (Object(helpers["isHTML"])(text) &&
-                (this.processWordHTML(e, text) || this.processHTML(e, text))) {
+                (this.processWordHTML(e, text, (dt ? dt.getData(constants["TEXT_RTF"]) : "")) || this.processHTML(e, text))) {
                 return false;
             }
         }
@@ -20529,16 +20615,16 @@ class paste_paste extends plugin_Plugin {
             e.stopPropagation();
         }
     }
-    processWordHTML(e, text) {
+    processWordHTML(e, text, rtfText) {
         if (this.j.o.processPasteFromWord && Object(helpers["isHtmlFromWord"])(text)) {
             if (this.j.o.askBeforePasteFromWord) {
                 this.askInsertTypeDialog('The pasted content is coming from a Microsoft Word/Excel document. ' +
                     'Do you want to keep the format or clean it up?', 'Word Paste Detected', insertType => {
-                    this.insertFromWordByType(e, text, insertType);
+                    this.insertFromWordByType(e, text, rtfText, insertType);
                 });
             }
             else {
-                this.insertFromWordByType(e, text, this.j.o.defaultActionOnPasteFromWord || this.j.o.defaultActionOnPaste);
+                this.insertFromWordByType(e, text, rtfText, this.j.o.defaultActionOnPasteFromWord || this.j.o.defaultActionOnPaste);
             }
             return true;
         }
@@ -20558,7 +20644,7 @@ class paste_paste extends plugin_Plugin {
         }
         return false;
     }
-    insertFromWordByType(e, html, insertType) {
+    insertFromWordByType(e, html, rtfText, insertType) {
         var _a;
         switch (insertType) {
             case constants["INSERT_AS_HTML"]: {
@@ -20579,6 +20665,9 @@ class paste_paste extends plugin_Plugin {
                 html = Object(helpers["stripTags"])(Object(helpers["cleanFromWord"])(html));
                 break;
             }
+        }
+        if (rtfText) {
+            html = replaceImagesSourceWithBase64(html, rtfText);
         }
         pasteInsertHtml(e, this.j, html);
     }

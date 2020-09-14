@@ -16,7 +16,8 @@ import {
 	INSERT_CLEAR_HTML,
 	INSERT_ONLY_TEXT,
 	TEXT_HTML,
-	TEXT_PLAIN
+	TEXT_PLAIN,
+	TEXT_RTF
 } from '../../../core/constants';
 
 import {
@@ -37,6 +38,7 @@ import { pluginKey as clipboardPluginKey } from '../clipboard';
 import { Dom } from '../../../core/dom';
 import { Confirm, Dialog } from '../../../modules/dialog';
 import { Button } from '../../../core/ui/button';
+import { replaceImagesSourceWithBase64 } from '../../../utils/word-image-filter';
 
 type PastedValue = {
 	html: string | Node;
@@ -99,7 +101,7 @@ export class paste extends Plugin {
 		for (const text of texts) {
 			if (
 				isHTML(text) &&
-				(this.processWordHTML(e, text) || this.processHTML(e, text))
+				(this.processWordHTML(e, text, (dt ? dt.getData(TEXT_RTF): "")) || this.processHTML(e, text))
 			) {
 				return false;
 			}
@@ -139,7 +141,7 @@ export class paste extends Plugin {
 	 * Try if text is Word's document fragment and try process this
 	 * @param text
 	 */
-	private processWordHTML(e: PasteEvent, text: string): boolean {
+	private processWordHTML(e: PasteEvent, text: string, rtfText: string): boolean {
 		if (this.j.o.processPasteFromWord && isHtmlFromWord(text)) {
 			if (this.j.o.askBeforePasteFromWord) {
 				this.askInsertTypeDialog(
@@ -147,13 +149,14 @@ export class paste extends Plugin {
 						'Do you want to keep the format or clean it up?',
 					'Word Paste Detected',
 					insertType => {
-						this.insertFromWordByType(e, text, insertType);
+						this.insertFromWordByType(e, text, rtfText, insertType);
 					}
 				);
 			} else {
 				this.insertFromWordByType(
 					e,
 					text,
+					rtfText,
 					this.j.o.defaultActionOnPasteFromWord || this.j.o.defaultActionOnPaste
 				);
 			}
@@ -207,6 +210,7 @@ export class paste extends Plugin {
 	private insertFromWordByType(
 		e: PasteEvent,
 		html: string,
+		rtfText: string,
 		insertType: InsertMode
 	) {
 		switch (insertType) {
@@ -233,6 +237,10 @@ export class paste extends Plugin {
 				html = stripTags(cleanFromWord(html));
 				break;
 			}
+		}
+
+		if (rtfText) {
+			html = replaceImagesSourceWithBase64(html, rtfText);
 		}
 
 		pasteInsertHtml(e, this.j, html);

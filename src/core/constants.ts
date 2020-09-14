@@ -99,6 +99,7 @@ export const IS_IE =
  */
 export const TEXT_PLAIN = IS_IE ? 'text' : 'text/plain';
 export const TEXT_HTML = IS_IE ? 'text' : 'text/html';
+export const TEXT_RTF = IS_IE ? 'text' : 'text/rtf';
 
 export const MARKER_CLASS = 'jodit-selection_marker';
 
